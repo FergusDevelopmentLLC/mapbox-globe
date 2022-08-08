@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Population density by country</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.js"></script>
+  <script src="js/colors.js"></script>
+  <script src="data/country_pop_dens.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <script>
+    let mapStyle = 'mapbox://styles/mapbox/satellite-streets-v11'
+    mapStyle = 'mapbox://styles/mapbox/light-v10'
+  </script>
+
+  <script>
+
+    country_pop_dens.features = country_pop_dens.features.sort((a, b) => (a['properties']['pop_den_2021'] > b['properties']['pop_den_2021']) ? 1 : -1)
+
+    let gradient = generateColor('#00a802', '#ffffff', country_pop_dens.features.length);
+
+    country_pop_dens.features = country_pop_dens.features.map((feature, i) => {
+      feature.properties['color'] = `#${gradient[i]}`
+      return feature
+    })
+
+    mapboxgl.accessToken = 'pk.eyJ1Ijoid2lsbGNhcnRlciIsImEiOiJjamV4b2g3Z2ExOGF4MzFwN3R1dHJ3d2J4In0.Ti-hnuBH8W4bHn7k6GCpGw'
+
+    //http://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: {
+        'version': 8,
+        'sources': {
+          'basemap_raster_tiles': {
+            'type': 'raster',
+            'tiles': ['http://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'],
+            'tileSize': 256
+          }
+        },
+        'layers': [{ 'id': 'basemap', 'type': 'raster', 'source': 'basemap_raster_tiles', 'minzoom': 0, 'maxzoom': 22 }]
+      },
+      zoom: 2.2,
+      center: [100, 20],
+      projection: 'globe'
+    });
+
+    map.on('load', () => {
+      map.setFog({
+        "color": "#aaaaaa",
+        "horizon-blend": 0.08,
+        "high-color": "#245bde",
+        "space-color": "#000000",
+        "star-intensity": 0.6
+      });
+
+      map.addSource('countries', {
+        type: 'geojson',
+        // Use a URL for the value for the `data` property.
+        data: country_pop_dens
+      });
+
+      map.addLayer({
+        'id': 'countries-layer',
+        'source': 'countries',
+        'type': 'fill-extrusion',
+        'paint': {
+          'fill-extrusion-color': ['get', 'color'],
+          'fill-extrusion-height': ['interpolate', ['linear'], ['get', 'pop_den_2021'], 0, 0, 75, 750000],
+          'fill-extrusion-opacity': .70
+        }
+      });
+    });
+
+    map.on('idle', () => {
+      console.log(map.getCenter())
+    });
+
+
+
+
+  </script>
+
+</body>
+
+</html>

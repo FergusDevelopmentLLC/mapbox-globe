@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Legend Globe with Sliders</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.2.2/d3.min.js"></script>
+  <script src="https://d3js.org/d3-geo.v1.min.js"></script>
+  <script src="https://d3js.org/topojson.v2.min.js"></script>
+  <script src="https://bl.ocks.org/mbostock/raw/7ea1dde508cec6d2d95306f92642bc42/6aac691494f752142a67cc43c51a0fd09896dbd4/versor.js"></script>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #globe {
+      cursor: move;
+      position: absolute;
+      right: 1rem;
+      bottom: 1rem;
+    }
+
+    h4 {
+      margin: 0
+    }
+
+    .range-label, .output {
+      font-family: 'Courier New', monospace;
+    }
+    
+    .slidecontainer {
+      margin: 1rem 0 0 1rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="slidecontainer">
+    <h4>Latitude</h4>
+    <input type="range" min="-180" max="180" value="0" class="slider" id="latitude">
+    <div class="range-label">-180 ---- 180</div>
+    <div class="output" id="lat-output"></div>
+  </div>
+  <div class="slidecontainer">
+    <h4>Longitude</h4>
+    <input type="range" min="-180" max="180" value="0" class="slider" id="longitude">
+    <div class="range-label">-180 ---- 180</div>
+    <div class="output" id="lng-output"></div>
+  </div>
+
+  <canvas id="globe"></canvas>
+
+  <script>
+    
+    let rotationDelay = 3000 // ms to wait after dragging before auto-rotating
+    let scaleFactor = .95 // scale of the globe (not the canvas element)
+    let degPerSec = 6 // autorotation speed
+    let angles = { x: 0, y: 0, z: 0 }
+    let colorWater = '#000'
+    let colorLand = '#FFF'
+
+    let width = 300
+    let height = 300
+    
+    let canvas = d3.select('#globe')
+    let context = canvas.node().getContext('2d')
+    let water = { type: 'Sphere' }
+    let projection = d3.geoOrthographic().precision(0.1)
+    let path = d3.geoPath(projection).context(context)
+    let v0 // Mouse position in Cartesian coordinates at start of drag gesture.
+    let r0 // Projection rotation as Euler angles at start.
+    let q0 // Projection rotation as versor at start.
+    let lastTime = d3.now()
+    let degPerMs = degPerSec / 1000
+    let land
+    let autorotate, now, diff, roation
+
+    let latSlider = document.getElementById("latitude")
+    let latOutput = document.getElementById("lat-output")
+
+    let lngSlider = document.getElementById("longitude")
+    let lngOutput = document.getElementById("lng-output")
+
+    let latValue = 0
+    let lngValue = 0
+
+    const setAngles = () => {
+      
+      let rotation = projection.rotate()
+      rotation[0] = latValue
+      rotation[1] = lngValue
+      rotation[2] = 0
+      
+      projection.rotate(rotation)
+    }
+
+    const scale = () => {
+      canvas.attr('width', width).attr('height', height)
+
+      projection
+        .scale((scaleFactor * Math.min(width, height)) / 2)
+        .translate([width / 2, height / 2])
+
+      render()
+    }
+
+    const startRotation = (delay) => autorotate.restart(rotate, delay || 0)
+    
+    const stopRotation = () => autorotate.stop()
+
+    function dragstarted() {
+      v0 = versor.cartesian(projection.invert(d3.mouse(this)))
+      r0 = projection.rotate()
+      q0 = versor(r0)
+      stopRotation()
+    }
+
+    function dragged() {
+      var v1 = versor.cartesian(projection.rotate(r0).invert(d3.mouse(this)))
+      var q1 = versor.multiply(q0, versor.delta(v0, v1))
+      var r1 = versor.rotation(q1)
+      
+      latValue = r1[0]
+      lngValue = r1[1]
+
+      latSlider.value = latValue
+      lngSlider.value = lngValue
+      latOutput.innerHTML = latValue
+      lngOutput.innerHTML = lngValue
+
+      projection.rotate(r1)
+      render()
+    }
+
+    const dragended = () => {
+      startRotation(rotationDelay)
+    }
+    
+    const render = () => {
+      context.clearRect(0, 0, width, height)
+      fill(water, colorWater)
+      fill(land, colorLand)
+    }
+
+    const fill = (obj, color) => {
+      context.beginPath()
+      path(obj)
+      context.fillStyle = color
+      context.fill()
+    }
+
+    const rotate = (elapsed) => {
+      now = d3.now()
+      diff = now - lastTime
+      // if (diff < elapsed) {
+      //   rotation = projection.rotate()
+      //   rotation[0] += diff * degPerMs
+      //   projection.rotate(rotation)
+      //   render()
+      // }
+      render()
+      lastTime = now
+    }
+
+    const loadData = (cb) => {
+      d3.json('https://unpkg.com/world-atlas@1/world/110m.json', (error, world) => {
+        if (error) throw error
+        cb(world)
+      })
+    }
+
+    setAngles()
+
+    canvas
+      .call(d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended)
+      )
+
+    loadData((world, cList) => {
+      land = topojson.feature(world, world.objects.land)
+      scale()
+      autorotate = d3.timer(rotate)
+    })
+  </script>
+
+  <script>
+    
+    latOutput.innerHTML = latSlider.value
+    latSlider.oninput = function() {
+      latOutput.innerHTML = this.value
+      latValue = this.value
+      setAngles()
+    }
+
+    lngOutput.innerHTML = lngSlider.value
+    lngSlider.oninput = function() {
+      lngOutput.innerHTML = this.value
+      lngValue = this.value
+      setAngles()
+    }
+
+  </script>
+</body>
+
+</html>
