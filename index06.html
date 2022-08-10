@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Legend Globe with Sliders</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.2.2/d3.min.js"></script>
+  <script src="https://d3js.org/d3-geo.v1.min.js"></script>
+  <script src="https://d3js.org/topojson.v2.min.js"></script>
+  <script
+    src="https://bl.ocks.org/mbostock/raw/7ea1dde508cec6d2d95306f92642bc42/6aac691494f752142a67cc43c51a0fd09896dbd4/versor.js"></script>
+
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.js"></script>
+  <script src="js/colors.js"></script>
+  <script src="data/country_pop_dens.js"></script>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #globe {
+      cursor: move;
+      position: absolute;
+      right: 1rem;
+      bottom: 1rem;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="map"></div>
+
+  <canvas id="globe"></canvas>
+
+  <script>
+
+    let rotationDelay = 3000 // ms to wait after dragging before auto-rotating
+    let scaleFactor = .95 // scale of the globe (not the canvas element)
+    let degPerSec = 6 // autorotation speed
+    let angles = { x: 0, y: 0, z: 0 }
+    let colorWater = '#FFF'
+    let colorLand = 'gray'
+
+    let width = 150
+    let height = 150
+
+    let canvas = d3.select('#globe')
+    let context = canvas.node().getContext('2d')
+    let water = { type: 'Sphere' }
+    let projection = d3.geoOrthographic().precision(0.1)
+    let path = d3.geoPath(projection).context(context)
+
+    let routePath = d3.geoPath(projection).context(context)
+
+    let v0 // Mouse position in Cartesian coordinates at start of drag gesture.
+    let r0 // Projection rotation as Euler angles at start.
+    let q0 // Projection rotation as versor at start.
+    let lastTime = d3.now()
+    let degPerMs = degPerSec / 1000
+    let land
+    let autorotate, now, diff, roation
+
+    let latValue = 0
+    let lngValue = 0
+
+    const setAngles = () => {
+
+      let rotation = projection.rotate()
+      rotation[0] = latValue
+      rotation[1] = lngValue
+      rotation[2] = 0
+
+      projection.rotate(rotation)
+
+      render()
+    }
+
+    const drawBoundingBox = (boundingBox) => {
+
+      let ne = [boundingBox._ne.lng, boundingBox._ne.lat]
+      let se = [boundingBox._ne.lng, boundingBox._sw.lat]
+      let sw = [boundingBox._sw.lng, boundingBox._sw.lat]
+      let nw = [boundingBox._sw.lng, boundingBox._ne.lat]
+      
+      let bboxCoords = [nw, ne, se, sw, nw]
+
+      let bb = {
+        type: "LineString",
+        coordinates: bboxCoords
+      }
+
+      drawLine(bb, 'red')
+
+    }
+
+    const scale = () => {
+      canvas.attr('width', width).attr('height', height)
+
+      projection
+        .scale((scaleFactor * Math.min(width, height)) / 2)
+        .translate([width / 2, height / 2])
+
+      render()
+    }
+
+    const startRotation = (delay) => autorotate.restart(rotate, delay || 0)
+
+    const stopRotation = () => autorotate.stop()
+
+    function dragstarted() {
+      v0 = versor.cartesian(projection.invert(d3.mouse(this)))
+      r0 = projection.rotate()
+      q0 = versor(r0)
+      stopRotation()
+    }
+
+    function dragged() {
+      // var v1 = versor.cartesian(projection.rotate(r0).invert(d3.mouse(this)))
+      // var q1 = versor.multiply(q0, versor.delta(v0, v1))
+      // var r1 = versor.rotation(q1)
+
+      // latValue = r1[0]
+      // lngValue = r1[1]
+
+      // projection.rotate(r1)
+      // render()
+    }
+
+    const dragended = () => {
+      startRotation(rotationDelay)
+    }
+
+    const fill = (obj, color) => {
+      context.beginPath()
+      path(obj)
+      context.fillStyle = color
+      context.fill()
+    }
+
+    const drawLine = (obj, color) => {
+      context.beginPath()
+      path(obj)
+      context.strokeStyle = color;
+      context.stroke()
+    }
+
+    const render = () => {
+      context.clearRect(0, 0, width, height)
+      fill(water, colorWater)
+      fill(land, colorLand)
+    }
+
+    const loadData = (cb) => {
+      d3.json('https://unpkg.com/world-atlas@1/world/110m.json', (error, world) => {
+        if (error) throw error
+        cb(world)
+      })
+    }
+
+    setAngles()
+
+    canvas
+      .call(d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended)
+      )
+
+    loadData((world, cList) => {
+      land = topojson.feature(world, world.objects.land)
+      scale()
+    })
+
+
+
+
+  </script>
+
+  <script>
+
+    country_pop_dens.features = country_pop_dens.features.sort((a, b) => (a['properties']['pop_den_2021'] > b['properties']['pop_den_2021']) ? 1 : -1)
+
+    let gradient = generateColor('#00a802', '#ffffff', country_pop_dens.features.length);
+
+    country_pop_dens.features = country_pop_dens.features.map((feature, i) => {
+      feature.properties['color'] = `#${gradient[i]}`
+      return feature
+    })
+
+    mapboxgl.accessToken = 'pk.eyJ1Ijoid2lsbGNhcnRlciIsImEiOiJjamV4b2g3Z2ExOGF4MzFwN3R1dHJ3d2J4In0.Ti-hnuBH8W4bHn7k6GCpGw'
+
+    //http://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: {
+        'version': 8,
+        'sources': {
+          'basemap_raster_tiles': {
+            'type': 'raster',
+            'tiles': ['http://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'],
+            'tileSize': 256
+          }
+        },
+        'layers': [{ 'id': 'basemap', 'type': 'raster', 'source': 'basemap_raster_tiles', 'minzoom': 0, 'maxzoom': 22 }]
+      },
+      zoom: 2.2,
+      center: [0, 0],
+      projection: 'globe'
+    })
+
+    map.on('load', () => {
+      map.setFog({
+        "color": "#aaaaaa",
+        "horizon-blend": 0.08,
+        "high-color": "#245bde",
+        "space-color": "#000000",
+        "star-intensity": 0.6
+      })
+
+      map.addSource('countries', {
+        type: 'geojson',
+        // Use a URL for the value for the `data` property.
+        data: country_pop_dens
+      })
+
+      map.addLayer({
+        'id': 'countries-layer',
+        'source': 'countries',
+        'type': 'fill-extrusion',
+        'paint': {
+          'fill-extrusion-color': ['get', 'color'],
+          'fill-extrusion-height': ['interpolate', ['linear'], ['get', 'pop_den_2021'], 0, 0, 75, 750000],
+          'fill-extrusion-opacity': .70
+        }
+      })
+    })
+
+    const matchMaps = () => {
+      let calcLat = parseInt(map.getCenter()['lng']) * -1
+      latValue = calcLat
+
+      let calcLng = parseInt(map.getCenter()['lat']) * -1
+      lngValue = calcLng
+
+      setAngles()
+
+      // console.log(map.getZoom())
+
+      if(map.getZoom() > 4.25)
+        drawBoundingBox(map.getBounds())
+    }
+
+    map.on('drag', () => {
+      matchMaps()
+    })
+
+    map.on('zoom', () => {
+      matchMaps()
+    })
+
+  </script>
+
+</body>
+
+</html>
