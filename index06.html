@@ -251,11 +251,11 @@
     })
 
     const matchMaps = () => {
-      let calcLat = parseInt(map.getCenter()['lng']) * -1
-      latValue = calcLat
 
-      let calcLng = parseInt(map.getCenter()['lat']) * -1
-      lngValue = calcLng
+      let ctr = map.getCenter()
+      latValue = parseInt(ctr['lng']) * -1
+
+      lngValue = parseInt(ctr['lat']) * -1
 
       setAngles()
 
@@ -263,6 +263,7 @@
 
       if(map.getZoom() > 4.25)
         drawBoundingBox(map.getBounds())
+        
     }
 
     map.on('drag', () => {
