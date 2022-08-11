@@ -11,9 +11,7 @@
   <script src="https://bl.ocks.org/mbostock/raw/7ea1dde508cec6d2d95306f92642bc42/6aac691494f752142a67cc43c51a0fd09896dbd4/versor.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.js"></script>
-  <script src="js/colors.js"></script>
   <script src="data/earthquakes.js"></script>
-
   <style>
     html,
     body {
@@ -49,11 +47,11 @@
     let scaleFactor = .95 // scale of the globe (not the canvas element)
     let degPerSec = 6 // autorotation speed
     let angles = { x: 0, y: 0, z: 0 }
-    let colorWater = '#FFF'
-    let colorLand = 'gray'
+    let colorWater = 'gray'
+    let colorLand = 'black'
 
-    let width = 150
-    let height = 150
+    let width = 100
+    let height = 100    
 
     let canvas = d3.select('#globe')
     let context = canvas.node().getContext('2d')
@@ -130,7 +128,7 @@
     const drawLine = (obj, color) => {
       context.beginPath()
       path(obj)
-      context.strokeStyle = color;
+      context.strokeStyle = color
       context.stroke()
     }
 
@@ -164,13 +162,7 @@
   <script>
 
     earthquakes.features = earthquakes.features.sort((a, b) => (a['properties']['magnitude'] > b['properties']['magnitude']) ? 1 : -1)
-    let earthquakeGradient = generateColor('#00a802', '#ffffff', earthquakes.features.length)
     
-    earthquakes.features = earthquakes.features.map((feature, i) => {
-      feature.properties['color'] = `#${earthquakeGradient[i]}`
-      return feature
-    })
-
     mapboxgl.accessToken = 'pk.eyJ1Ijoid2lsbGNhcnRlciIsImEiOiJjamV4b2g3Z2ExOGF4MzFwN3R1dHJ3d2J4In0.Ti-hnuBH8W4bHn7k6GCpGw'
 
     const map = new mapboxgl.Map({
@@ -217,8 +209,8 @@
 
       setAngles()
 
-      if(map.getZoom() > 4)
-        drawBoundingBox(map.getBounds())
+      //if(map.getZoom() > 4)
+      drawBoundingBox(map.getBounds())
         
     }
 
